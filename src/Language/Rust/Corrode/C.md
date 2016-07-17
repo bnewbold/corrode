@@ -711,7 +711,7 @@ same surrounded by braces. Anything else is a syntax error.
 
 ```haskell
 interpretInitializer ty (CInitExpr initial _)
-    = fmap (castTo ty) (interpretExpr True initial)
+    = fmap (castTo ty) (interpretExprAs ty True initial)
 interpretInitializer ty (CInitList [([], CInitExpr initial _)] _)
     = fmap (castTo ty) (interpretExpr True initial)
 interpretInitializer _ initial = badSource initial "scalar initializer"
@@ -1402,7 +1402,7 @@ the left-hand and right-hand sides recursively, we just delegate to the
 ```haskell
 interpretExpr demand expr@(CAssign op lhs rhs _) = do
     lhs' <- interpretExpr True lhs
-    rhs' <- interpretExpr True rhs
+    rhs' <- interpretExprAs (resultType lhs') True rhs
     compound expr False demand op lhs' rhs'
 ```
 
@@ -1668,7 +1668,7 @@ type specified, or it's a syntax error.
 ```haskell
     castArgs _ [] [] = return []
     castArgs variadic (ty : tys) (arg : rest) = do
-        arg' <- interpretExpr True arg
+        arg' <- interpretExprAs ty True arg
         args' <- castArgs variadic tys rest
         return (castTo ty arg' : args')
     castArgs True [] rest = mapM (fmap result . interpretExpr True) rest
@@ -1891,6 +1891,14 @@ interpretExpr _ expr = unimplemented expr
 > **TODO**: Document these expression helper functions.
 
 ```haskell
+interpretExprAs :: CType -> Bool -> CExpr -> EnvMonad Result
+interpretExprAs ty demand expr = do
+    expr' <- interpretExpr demand expr
+    case (ty, resultType expr') of
+        (a, b) | a == b -> return expr'
+        (IsEnum _, _) -> unimplemented expr
+        (_, _) -> return expr'
+
 wrapping :: Result -> Result
 wrapping r@(Result { resultType = IsInt Unsigned _ }) = case result r of
     Rust.Add lhs rhs -> r { result = Rust.MethodCall lhs (Rust.VarName "wrapping_add") [rhs] }
