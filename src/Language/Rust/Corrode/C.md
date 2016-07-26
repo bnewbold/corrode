@@ -1829,22 +1829,48 @@ pointer.
 
 ```haskell
 interpretExpr _ expr@(CVar ident _) = do
-    (name, sym) <- getIdent (SymbolIdent ident)
-    case sym of
-        Just (mut, ty@(IsEnum enum)) -> do
+    case (identToString ident) of
+        "__builtin_bswap16" -> do
             return Result
-                { resultType = ty
-                , isMutable = mut
-                , result = Rust.Path (Rust.PathSegments [enum, name])
+                { resultType = IsFunc (IsInt Unsigned (BitWidth 16))
+                                      [(Nothing, IsInt Unsigned (BitWidth 16))]
+                                      False
+                , isMutable = Rust.Immutable
+                , result = Rust.Var (Rust.VarName "u16::swap_bytes")
                 }
-        Just (mut, ty) -> do
-            lift $ tell mempty { usesSymbols = Set.singleton name }
+        "__builtin_bswap32" -> do
             return Result
-                { resultType = ty
-                , isMutable = mut
-                , result = Rust.Var (Rust.VarName name)
+                { resultType = IsFunc (IsInt Unsigned (BitWidth 32))
+                                      [(Nothing, IsInt Unsigned (BitWidth 32))]
+                                      False
+                , isMutable = Rust.Immutable
+                , result = Rust.Var (Rust.VarName "u32::swap_bytes")
                 }
-        Nothing -> badSource expr "undefined variable"
+        "__builtin_bswap64" -> do
+            return Result
+                { resultType = IsFunc (IsInt Unsigned (BitWidth 64))
+                                      [(Nothing, IsInt Unsigned (BitWidth 64))]
+                                      False
+                , isMutable = Rust.Immutable
+                , result = Rust.Var (Rust.VarName "u64::swap_bytes")
+                }
+        _ -> do
+            (name, sym) <- getIdent (SymbolIdent ident)
+            case sym of
+                Just (mut, ty@(IsEnum enum)) -> do
+                    return Result
+                        { resultType = ty
+                        , isMutable = mut
+                        , result = Rust.Path (Rust.PathSegments [enum, name])
+                        }
+                Just (mut, ty) -> do
+                    lift $ tell mempty { usesSymbols = Set.singleton name }
+                    return Result
+                        { resultType = ty
+                        , isMutable = mut
+                        , result = Rust.Var (Rust.VarName name)
+                        }
+                Nothing -> badSource expr "undefined variable"
 ```
 
 C literals (integer, floating-point, character, and string) translate to
